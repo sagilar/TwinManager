@@ -1,0 +1,46 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.twins</groupId>
+  <artifactId>TwinManagerFramework</artifactId>
+  <version>0.0.2</version>
+  <name>TwinManagerFramework</name>
+  <description>Library for Twin management in Digital Twinning</description>
+  
+  <dependencies>
+		<dependency>
+			<groupId>org.eclipse.paho</groupId>
+			<artifactId>org.eclipse.paho.client.mqttv3</artifactId>
+			<version>1.2.0</version>
+		</dependency>
+		<dependency>
+		  	<groupId>com.rabbitmq</groupId>
+		  	<artifactId>amqp-client</artifactId>
+		  	<version>5.14.0</version>
+		</dependency>
+		<dependency>
+		  	<groupId>org.json</groupId>
+		  	<artifactId>json</artifactId>
+		  	<version>20211205</version>
+		</dependency>
+		<dependency>
+		    <groupId>com.typesafe</groupId>
+		    <artifactId>config</artifactId>
+		    <version>1.4.2</version>
+		</dependency>
+		<dependency>
+		    <groupId>org.siani.javafmi</groupId>
+		    <artifactId>fmu-wrapper</artifactId>
+		    <version>LATEST</version>
+		</dependency>
+		<dependency>
+		  <groupId>org.into-cps.maestro</groupId>
+		  <artifactId>maestro</artifactId>
+		  <version>2.3.0</version>
+		</dependency>
+		<dependency>
+		  <groupId>com.opencsv</groupId>
+		  <artifactId>opencsv</artifactId>
+		  <version>5.7.1</version>
+		</dependency>
+	</dependencies>
+</project>
