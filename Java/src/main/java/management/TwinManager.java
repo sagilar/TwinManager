@@ -124,6 +124,16 @@ public class TwinManager {
 		to.setAttributeValue(toAttribute, value);
 	}
 	
+	void copyAttributeValues(Twin from, Twin to){
+		for (Map.Entry<String,Object>  att : from.getAttributes().entrySet()) {
+			to.setAttributeValue(att.getKey(), att.getValue());
+		}
+	}
+	
+	void synchronizeTwin(Twin from, Twin to) {
+		copyAttributeValues(from,to);
+	}
+	
 	void cloneTwin(String nameFrom, String nameTo, Clock time){
 		if(time != null && time.getNow() > getTimeFrom(nameFrom).getNow()) {
 			this.waitUntil(time);
