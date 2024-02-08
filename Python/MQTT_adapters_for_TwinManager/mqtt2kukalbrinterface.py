@@ -1,6 +1,6 @@
 # Author: Santiago Gil
 import paho.mqtt.client as mqtt
-import kukalbrinterface
+import kukalbrinterface # See: https://github.com/sagilar/kukalbrinterface
 import time
 import numpy as np
 import csv

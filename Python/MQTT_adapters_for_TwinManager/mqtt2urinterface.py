@@ -1,6 +1,6 @@
 # Author: Santiago Gil
 import paho.mqtt.client as mqtt
-import urinterface.robot_connection as urconn
+import urinterface.robot_connection as urconn # See: https://gitlab.au.dk/clagms/urinterface
 import time
 import numpy as np
 import csv
