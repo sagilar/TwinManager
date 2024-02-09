@@ -18,8 +18,8 @@ public class FlexCell {
 	static String dataFolderPrefix = "/workspace/data/flex-cell/";
 
 	public static void main(String[] args) {
-		TwinSchema kukaSchema = new TwinSchema("Kuka_LBR_iiwa7");
-		TwinSchema ur5eSchema = new TwinSchema("UR5e");
+		TwinSchema kukaSchema = TwinSchema.initializeFromAASX(modelFolderPrefix+"kuka.aasx","Kuka_LBR_iiwa7");
+		TwinSchema ur5eSchema = TwinSchema.initializeFromAASX(modelFolderPrefix+"ur5e.aasx","UR5e");
 		
 		TwinConfiguration kukaModelConfig = new TwinConfiguration(dtFolderPrefix+"kuka_experimental.conf");
 		TwinConfiguration ur5eModelConfig = new TwinConfiguration(dtFolderPrefix+"ur5e_experimental.conf");
