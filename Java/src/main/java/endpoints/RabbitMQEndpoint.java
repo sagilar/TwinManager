@@ -20,7 +20,7 @@ import com.typesafe.config.Config;
 
 import config.TwinConfiguration;
 import model.Clock;
-import model.TwinSchema.Operation;
+import model.composition.Operation;
 
 public class RabbitMQEndpoint implements Endpoint {
 	String ip;

@@ -1,6 +1,7 @@
 package model;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -16,8 +17,11 @@ import org.eclipse.basyx.submodel.metamodel.api.ISubmodel;
 import org.eclipse.basyx.submodel.metamodel.api.submodelelement.ISubmodelElement;
 import org.xml.sax.SAXException;
 
+import model.composition.Attribute;
+import model.composition.Operation;
+
 public class TwinSchema {
-	// TO DO: INITIALIZATION FROM FILES
+	// TO DO: INITIALIZATION FROM JSON and XML
 	private String className;
 	private List<Attribute> attributes;
 	private List<Operation> operations;
@@ -39,7 +43,8 @@ public class TwinSchema {
 	
 	public static TwinSchema initializeFromAASX(String filePath, String aasIdShort) {
 		TwinSchema schema = new TwinSchema();
-		
+		schema.attributes = new ArrayList<Attribute>();
+		schema.operations = new ArrayList<Operation>();
 		
 		
 		AASXToMetamodelConverter packageManager = new AASXToMetamodelConverter(filePath);
@@ -59,17 +64,12 @@ public class TwinSchema {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		AASBundle bundle = findBundle(bundles, aasIdShort);
-		
+		/*AASBundle bundle = findBundle(bundles, aasIdShort);
 		IAssetAdministrationShell objectAAS = bundle.getAAS();
-		System.out.println(objectAAS);
 		Map<String, ISubmodel> submodels = objectAAS.getSubmodels();
-		System.out.println(submodels);
-
-		//ISubmodel operationalDataSubmodel = getBundleSubmodel(submodels, "OperationalData");
-		ISubmodel operationalDataSubmodel = submodels.get("OperationalData");
+		ISubmodel operationalDataSubmodel = submodels.get("OperationalData");*/
+		ISubmodel operationalDataSubmodel = findSubmodel(bundles,"OperationalData");
 		
-		System.out.println(operationalDataSubmodel);
 		ISubmodelElement seOperations = operationalDataSubmodel.getSubmodelElement("Operations");
 		Collection<ISubmodelElement> seOperationsCollection = (Collection<ISubmodelElement>) seOperations.getValue();
 		for (ISubmodelElement op : seOperationsCollection) {
@@ -88,42 +88,23 @@ public class TwinSchema {
 		return schema;
 	}
 	
-	public static class Attribute{
-		String name;
-		String type;
-		
-		public Attribute() {
+
+	private static ISubmodel findSubmodel(Set<AASBundle> bundles, String idShort) {
+		for (AASBundle aasBundle : bundles) {
+			for (ISubmodel sm : aasBundle.getSubmodels()) {
+				if(sm.getIdShort().equals(idShort)) {
+					return sm;
+				}
+			}
 		}
-		
-		public String getName() {
-			return this.name;
-		}
-		
-		public void setName(String name) {
-			this.name = name;
-		}
-	}
-	
-	public static class Operation{
-		String name;
-		List<String> parameters;
-		
-		public Operation() {
-		}
-		
-		public void setName(String name) {
-			this.name = name;
-		}
-		
-		public String getName() {
-			return this.name;
-		}
+		return null;
 	}
 	
 	private static AASBundle findBundle(Set<AASBundle> bundles, String aasIdShort) {
 		for (AASBundle aasBundle : bundles) {
-			if (aasBundle.getAAS().getIdShort().equals(aasIdShort))
+			if (aasBundle.getAAS().getIdShort().equals(aasIdShort)) {
 				return aasBundle;
+			}
 		}
 		return null;
 	}

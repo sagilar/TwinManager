@@ -11,7 +11,7 @@ import org.javafmi.wrapper.Simulation;
 
 import config.TwinConfiguration;
 import model.Clock;
-import model.TwinSchema.Operation;
+import model.composition.Operation;
 
 
 public class FMIEndpoint implements Endpoint {

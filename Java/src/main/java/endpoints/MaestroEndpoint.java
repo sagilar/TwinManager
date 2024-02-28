@@ -23,7 +23,7 @@ import com.typesafe.config.ConfigRenderOptions;
 
 import config.ComponentConfiguration;
 import model.Clock;
-import model.TwinSchema.Operation;
+import model.composition.Operation;
 
 import java.io.File;
 import java.io.FileNotFoundException;

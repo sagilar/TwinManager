@@ -11,8 +11,8 @@ import config.TwinConfiguration;
 import model.Clock;
 import model.Twin;
 import model.TwinSchema;
-import model.TwinSchema.Attribute;
-import model.TwinSchema.Operation;
+import model.composition.Attribute;
+import model.composition.Operation;
 import model.TwinSystem;
 
 public class TwinManager {

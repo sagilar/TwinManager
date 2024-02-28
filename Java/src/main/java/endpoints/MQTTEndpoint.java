@@ -22,7 +22,7 @@ import org.json.JSONObject;
 
 import config.TwinConfiguration;
 import model.Clock;
-import model.TwinSchema.Operation;
+import model.composition.Operation;
 
 
 public class MQTTEndpoint implements Endpoint {
