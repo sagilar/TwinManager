@@ -1,5 +1,6 @@
 package model;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -22,12 +23,13 @@ public class TwinSystem {
 	AggregateEndpoint endpoint;
 	String systemName;
 	String outputPath;
+	Clock clock;
 	
 	/***** For Physical Twin Systems *****/
 	public TwinSystem(String systemName, Map<String,Twin> twins) {
 		this.twins = twins;
 		this.systemName = systemName;
-		this.setConnections();
+		this.clock = new Clock();
 	}
 	
 	/***** For Digital Twin Systems *****/
@@ -39,6 +41,7 @@ public class TwinSystem {
 		this.outputPath = outputPath;
 		this.endpoint = new MaestroEndpoint(this.systemName,this.config,this.coeFilename,this.outputPath);
 		this.setConnections();
+		this.clock = new Clock();
 	}
 	
 	/***** Standard interface methods *****/
@@ -91,7 +94,7 @@ public class TwinSystem {
 			Attribute attr = this.endpoint.getAttributeValue(attrName);
 			return attr;
 		} else {
-			return null;
+			return new Attribute();
 		}
 		
 	}
@@ -113,7 +116,7 @@ public class TwinSystem {
 			return this.endpoint.getAttributeValues(attrNames);
 		} else {
 			// Nothing happens
-			return null;
+			return new ArrayList<Attribute>();
 		}
 	}
 	
@@ -142,7 +145,7 @@ public class TwinSystem {
 		if (this.endpoint != null) {
 			return this.endpoint.getAttributeValue(attrName, clock);
 		} else {
-			return null;
+			return new Attribute();
 		}
 	}
 	
@@ -213,11 +216,11 @@ public class TwinSystem {
 	}
 	
 	public void setClock(Clock clock) {
-		this.endpoint.setClock(clock);
+		this.clock = clock;
 	}
 	
 	public Clock getClock() {
-		return this.endpoint.getClock();
+		return this.clock;
 	}
 
 }

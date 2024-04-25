@@ -208,10 +208,10 @@ public class MQTTEndpoint implements IndividualEndpoint {
 	private String mapAlias(String in) {
 		String out = "";
 		try {
-			out = this.twinConfig.conf.getString("aliases." + in);
+			out = this.twinConfig.conf.getString("mqtt.aliases." + in);
 		}catch(Exception e) {
 			out = in;
-		}
+		}		
 		return out;
 	}
 	

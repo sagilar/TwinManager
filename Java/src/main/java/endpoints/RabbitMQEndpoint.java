@@ -158,14 +158,25 @@ public class RabbitMQEndpoint implements IndividualEndpoint {
 	}
 	
 	private String mapRoutingKey(String in) {
-		String out = this.twinConfig.conf.getString("rabbitmq.routing_keys." + in);
+		String out = "";
+		try {
+			out = this.twinConfig.conf.getString("rabbitmq.routing_keys." + in);
+		}catch(Exception e) {
+			out = in;
+		}		
 		return out;
 	}
 	
 	private String mapAlias(String in) {
-		String out = this.twinConfig.conf.getString("rabbitmq.aliases." + in);
+		String out = "";
+		try {
+			out = this.twinConfig.conf.getString("rabbitmq.aliases." + in);
+		}catch(Exception e) {
+			out = in;
+		}		
 		return out;
 	}
+
 	
 	private List<String> mapOperationRoutingKey(String in) {
 		List<String> out = this.twinConfig.conf.getStringList("rabbitmq.routing_keys.operations" + in);

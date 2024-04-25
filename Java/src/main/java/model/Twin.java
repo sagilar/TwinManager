@@ -34,6 +34,8 @@ public class Twin {
 		this.name = name;
 		this.schema = definition;
 		this.clock = new Clock();
+		this.registerAttributes(this.schema.getAttributes());
+		this.registerOperations(this.schema.getOperations());
 	}
 	
 	public Twin(String name, TwinConfiguration config) {
@@ -63,6 +65,7 @@ public class Twin {
 		this.schema = definition;
 		this.clock = new Clock();
 		
+		
 		if (config.conf.hasPath("rabbitmq")) {
 			this.endpoint = new RabbitMQEndpoint(name,config);
 		} else if (config.conf.hasPath("mqtt")) {
@@ -73,6 +76,8 @@ public class Twin {
 			args.add(0.0);
 			this.endpoint.executeOperation("initializeSimulation",args);
 		} else if(config.conf.hasPath("henshin")) {}
+		this.registerAttributes(this.schema.getAttributes());
+		this.registerOperations(this.schema.getOperations());
 	}
 	
 	
@@ -81,15 +86,21 @@ public class Twin {
 
 	public Attribute getAttributeValue(String attrName) {
 		if (this.endpoint instanceof RabbitMQEndpoint) {
-			Attribute attr = null;
+			Attribute attr = new Attribute();
 			try {
 				attr = this.endpoint.getAttributeValue(attrName);
+				if (attr == null) {
+					attr = new Attribute(attrName, null);
+				}
 				this.attributes.put(attrName, attr);
 			} catch(Exception e) {}
 		} else if(this.endpoint instanceof MQTTEndpoint) {
-			Attribute attr = null;
+			Attribute attr = new Attribute();
 			try {
 				attr = this.endpoint.getAttributeValue(attrName);
+				if (attr == null) {
+					attr = new Attribute(attrName, null);
+				}
 				this.attributes.put(attrName, attr);
 			} catch(Exception e) {}
 			
@@ -97,6 +108,9 @@ public class Twin {
 		else if(this.endpoint instanceof FMIEndpoint) {
 			Attribute attr = this.endpoint.getAttributeValue(attrName);
 			try {
+				if (attr == null) {
+					attr = new Attribute(attrName, null);
+				}
 				this.attributes.put(attrName,attr);
 			} catch(Exception e) {}
 		}
@@ -145,15 +159,21 @@ public class Twin {
 		this.endpoint.setClock(clock);
 		this.setClock(clock);
 		if (this.endpoint instanceof RabbitMQEndpoint) {
-			Attribute attr = null;
+			Attribute attr = new Attribute();
 			try {
 				attr = this.endpoint.getAttributeValue(attrName, clock);
+				if (attr == null) {
+					attr = new Attribute(attrName, null);
+				}
 				this.attributes.put(attrName, attr);
 			} catch(Exception e) {}
 		} else if(this.endpoint instanceof MQTTEndpoint) {
-			Attribute attr = null;
+			Attribute attr = new Attribute();
 			try {
 				attr = this.endpoint.getAttributeValue(attrName, clock);
+				if (attr == null) {
+					attr = new Attribute(attrName, null);
+				}
 				this.attributes.put(attrName, attr);
 			} catch(Exception e) {}
 			
@@ -161,6 +181,9 @@ public class Twin {
 		else if(this.endpoint instanceof FMIEndpoint) {
 			Attribute attr = this.endpoint.getAttributeValue(attrName, clock);
 			try {
+				if (attr == null) {
+					attr = new Attribute(attrName, null);
+				}
 				this.attributes.put(attrName,attr);
 			} catch(Exception e) {}
 		}
@@ -245,14 +268,18 @@ public class Twin {
 	public void registerOperations(List<Operation> operations) {
 		for (Operation op : operations) {
 			this.operations.put(op.getName(), new Operation());
-			this.endpoint.registerOperation(this.name,op);
+			try {
+				this.endpoint.registerOperation(this.name,op);
+			} catch (Exception e) {}			
 		}
 	}
 	
 	public void registerAttributes(List<Attribute> attributes) {
 		for (Attribute attr : attributes) {
 			this.attributes.put(attr.getName(), attr);
-			this.endpoint.registerAttribute(attr.getName(),this.getAttribute(attr.getName())); 
+			try {
+				this.endpoint.registerAttribute(attr.getName(),this.getAttribute(attr.getName()));
+			} catch (Exception e) {}			 
 		}		
 		
 	}

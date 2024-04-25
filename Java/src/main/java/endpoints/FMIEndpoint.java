@@ -44,7 +44,7 @@ public class FMIEndpoint implements IndividualEndpoint {
 		Attribute attr = new Attribute();
 		List<Attribute> attrs = new ArrayList<Attribute>();
 		for(String var : variables) {
-			value = simulation.read(var).asEnumeration();
+			value = simulation.read(var).asDouble();
 			attr.setName(var);
 			attr.setValue(value);
 			attrs.add(attr);
@@ -56,7 +56,7 @@ public class FMIEndpoint implements IndividualEndpoint {
 		String variableAlias = mapAlias(variable);
 		Attribute tmpAttr = new Attribute();
 		tmpAttr.setName(variable);		
-		Object value = simulation.read(variableAlias);
+		Object value = simulation.read(variableAlias).asDouble();
 		tmpAttr.setValue(value);
 		return tmpAttr;
 	}
@@ -88,9 +88,13 @@ public class FMIEndpoint implements IndividualEndpoint {
 		this.simulation.doStep(stepSize);
 	}
 	
-	
 	private String mapAlias(String in) {
-		String out = this.twinConfig.conf.getString("fmi.aliases." + in);
+		String out = "";
+		try {
+			out = this.twinConfig.conf.getString("fmi.aliases." + in);
+		}catch(Exception e) {
+			out = in;
+		}		
 		return out;
 	}
 
