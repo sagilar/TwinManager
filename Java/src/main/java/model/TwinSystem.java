@@ -9,18 +9,29 @@ import java.util.Set;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigValue;
 
-import config.ComponentConfiguration;
+import config.TwinSystemConfiguration;
+import endpoints.AggregateEndpoint;
 import endpoints.MaestroEndpoint;
+import model.composition.Attribute;
+import model.Clock;
 
 public class TwinSystem {
 	Map<String,Twin> twins;
-	ComponentConfiguration config;
+	TwinSystemConfiguration config;
 	String coeFilename;
-	MaestroEndpoint endpoint;
+	AggregateEndpoint endpoint;
 	String systemName;
 	String outputPath;
 	
-	public TwinSystem(String systemName, Map<String,Twin> twins,ComponentConfiguration config, String coeFilename, String outputPath) {
+	/***** For Physical Twin Systems *****/
+	public TwinSystem(String systemName, Map<String,Twin> twins) {
+		this.twins = twins;
+		this.systemName = systemName;
+		this.setConnections();
+	}
+	
+	/***** For Digital Twin Systems *****/
+	public TwinSystem(String systemName, Map<String,Twin> twins,TwinSystemConfiguration config, String coeFilename, String outputPath) {
 		this.twins = twins;
 		this.config = config;
 		this.coeFilename = coeFilename;
@@ -28,6 +39,14 @@ public class TwinSystem {
 		this.outputPath = outputPath;
 		this.endpoint = new MaestroEndpoint(this.systemName,this.config,this.coeFilename,this.outputPath);
 		this.setConnections();
+	}
+	
+	/***** Standard interface methods *****/
+	
+	public boolean executeOperation(String opName, List<?> arguments, String twinName) {
+		// No Endpoint
+		this.twins.get(twinName).executeOperation(opName, arguments);
+		return true;		
 	}
 	
 	public boolean executeOperation(String opName, List<?> arguments) {
@@ -41,45 +60,127 @@ public class TwinSystem {
 		
 	}
 	
-	public void setAttributeValue(String attrName, Object val) {
-		this.endpoint.setAttributeValue(attrName, val);
+	public boolean setAttributeValue(String attrName, Attribute attr) {
+		if (this.endpoint != null) {
+			this.endpoint.setAttributeValue(attrName,attr);
+		} else {
+			// Nothing happens
+		}
+		return true;
 	}
 	
-	public void setAttributeValue(String attrName, Object val, String twinName) {
-		this.twins.get(twinName).attributes.put(attrName, val);
-		this.endpoint.setAttributeValue(attrName, val, twinName);
+	public boolean setAttributeValue(String attrName, Attribute attr, String twinName) {
+		this.twins.get(twinName).attributes.put(attrName, attr);
+		if (this.endpoint != null) {
+			this.endpoint.setAttributeValue(attrName, attr, twinName);
+		}
+		return true;
 	}
 	
-	public Object getAttributeValue(String attrName) {
-		Object value = this.endpoint.getAttributeValue(attrName);
-		return value;
+	public boolean setAttributeValues(List<String> attrNames, List<Attribute> attrs) {
+		if (this.endpoint != null) {
+			this.endpoint.setAttributeValues(attrNames, attrs);
+		} else {
+			// Nothing happens
+		}
+		return true;
 	}
 	
-	public Object getAttributeValue(String attrName, String twinName) {
-		Object value = this.endpoint.getAttributeValue(attrName, twinName);
-		this.twins.get(twinName).attributes.put(attrName, value);
-		return value;
+	public Attribute getAttributeValue(String attrName) {
+		if (this.endpoint != null) {
+			Attribute attr = this.endpoint.getAttributeValue(attrName);
+			return attr;
+		} else {
+			return null;
+		}
+		
 	}
 	
-	public void setAttributeValues(List<String> attrNames, List<Object> values) {
-		this.endpoint.setAttributeValues(attrNames, values);
-	}
-	
-	public Object getAttributeValues(List<String> attrNames) {
-		return this.endpoint.getAttributeValues(attrNames);
-	}
-	
-	public Object getAttributeValue(String attrName, int entry) {
-		return this.endpoint.getAttributeValue(attrName, entry);
-	}
-	
-	public Object getAttributeValue(String attrName, int entry, String twinName) {
-		Object value = this.endpoint.getAttributeValue(attrName, entry, twinName);
-		this.twins.get(twinName).attributes.put(attrName, value);
-		return value;
+	public Attribute getAttributeValue(String attrName, String twinName) {
+		if (this.endpoint != null) {
+			Attribute value = this.endpoint.getAttributeValue(attrName, twinName);
+			this.twins.get(twinName).attributes.put(attrName, value);
+			return value;
+		} else {
+			return this.twins.get(twinName).getAttributeValue(attrName);
+		}
 	}
 	
 	
+	
+	public List<Attribute> getAttributeValues(List<String> attrNames) {
+		if (this.endpoint != null) {
+			return this.endpoint.getAttributeValues(attrNames);
+		} else {
+			// Nothing happens
+			return null;
+		}
+	}
+	
+	/**** Time-based methods *****/
+	
+	public boolean executeOperation(String opName, List<?> arguments, String twinName, Clock clock) {
+		this.setClock(clock);
+		Twin twin = this.twins.get(twinName);
+		twin.setClock(clock);
+		return twin.executeOperation(opName, arguments, clock);	
+	}
+	
+	public boolean executeOperation(String opName, List<?> arguments, Clock clock) {
+		this.setClock(clock);
+		
+		try {
+			this.endpoint.setClock(clock);
+			this.endpoint.executeOperation(opName, arguments,clock);
+			return true;
+		}catch(Exception e) {
+			return false;
+		}	
+	}
+	
+	public Attribute getAttributeValue(String attrName, Clock clock) {
+		if (this.endpoint != null) {
+			return this.endpoint.getAttributeValue(attrName, clock);
+		} else {
+			return null;
+		}
+	}
+	
+	public Attribute getAttributeValue(String attrName, String twinName, Clock clock) {
+		if (this.endpoint != null) {
+			Attribute attr = this.endpoint.getAttributeValue(attrName, twinName, clock);
+			this.twins.get(twinName).attributes.put(attrName, attr);
+			return attr;
+		} else {
+			Twin twin = this.twins.get(twinName);
+			twin.setClock(clock);
+			return twin.getAttributeValue(attrName, clock);
+		}
+	}
+	
+	public boolean setAttributeValue(String attrName, Attribute attr, Clock clock) {
+		this.setClock(clock);
+		if (this.endpoint != null) {
+			this.endpoint.setClock(clock);
+			this.endpoint.setAttributeValue(attrName, attr, clock);
+		} 
+		return true;
+	}
+	
+	public boolean setAttributeValue(String attrName, Attribute attr, String twinName, Clock clock) {
+		this.setClock(clock);
+		if (this.endpoint != null) {
+			this.endpoint.setClock(clock);
+			this.endpoint.setAttributeValue(attrName, attr,twinName, clock);
+		} else {
+			Twin twin = this.twins.get(twinName);
+			twin.setClock(clock);
+			twin.setAttributeValue(attrName, attr, clock);
+		}
+		return true;
+	}
+	
+	/***** Auxiliary methods *****/	
 	
 	private void setConnections() {
 		String input = "";
@@ -109,10 +210,6 @@ public class TwinSystem {
 	
 	public void synchronize() {
 		
-	}
-	
-	public void setClock(int value) {
-		this.endpoint.setClock(value);
 	}
 	
 	public void setClock(Clock clock) {

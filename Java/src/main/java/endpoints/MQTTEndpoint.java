@@ -22,10 +22,11 @@ import org.json.JSONObject;
 
 import config.TwinConfiguration;
 import model.Clock;
+import model.composition.Attribute;
 import model.composition.Operation;
 
 
-public class MQTTEndpoint implements Endpoint {
+public class MQTTEndpoint implements IndividualEndpoint {
 	String ip;
 	int port;
 	String username;
@@ -38,7 +39,7 @@ public class MQTTEndpoint implements Endpoint {
 	private Clock clock;
 	
 	// Schema
-	Map<String,Object> registeredAttributes;
+	Map<String,Attribute> registeredAttributes;
 	Map<String,Operation> registeredOperations;
 	
 	public MQTTEndpoint(String twinName, TwinConfiguration config) {
@@ -52,7 +53,7 @@ public class MQTTEndpoint implements Endpoint {
 		String broker = "tcp://" + ip + ":" + String.valueOf(port);
 		this.clock = new Clock();
 
-		this.registeredAttributes = new HashMap<String,Object>();		
+		this.registeredAttributes = new HashMap<String,Attribute>();		
 		this.registeredOperations = new HashMap<String,Operation>();
 		try {
 			RandomStringGenerator generator = new RandomStringGenerator.Builder()
@@ -115,11 +116,11 @@ public class MQTTEndpoint implements Endpoint {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		//System.out.println(variable);
-		//System.out.println(message);
-		this.registeredAttributes.put(variable, message);
+		Attribute tmpAttr = new Attribute();
 		String alias = mapAlias(variable);
-		this.registeredAttributes.put(alias, message);
+		tmpAttr.setName(alias);
+		tmpAttr.setValue(message);
+		this.registeredAttributes.put(alias, tmpAttr);
 	}
 	
 	@Override
@@ -128,36 +129,36 @@ public class MQTTEndpoint implements Endpoint {
 		this.registeredOperations.put(name,op);
 	}
 	@Override
-	public void registerAttribute(String name, Object obj) {
-		this.registeredAttributes.put(name,obj);
+	public void registerAttribute(String name, Attribute attr) {
+		this.registeredAttributes.put(name,attr);
 	}
 	@Override
-	public List<Object> getAttributeValues(List<String> variables) {
-		List<Object> values = new ArrayList<Object>();
+	public List<Attribute> getAttributeValues(List<String> variables) {
+		List<Attribute> attrs = new ArrayList<Attribute>();
 		for(String var : variables) {
 			int index = variables.indexOf(var);
-			Object value = this.getAttributeValue(var);
-			values.add(value);
+			Attribute attr = this.getAttributeValue(var);
+			attrs.add(attr);
 		}
-		return values;
+		return attrs;
 	}
 	@Override
-	public Object getAttributeValue(String variable) {
+	public Attribute getAttributeValue(String variable) {
 		return this.registeredAttributes.get(variable);
 	}
 	@Override
-	public boolean setAttributeValues(List<String> variables, List<Object> values) {
+	public boolean setAttributeValues(List<String> variables, List<Attribute> attrs) {
 		for(String var : variables) {
 			int index = variables.indexOf(var);
-			this.setAttributeValue(var, values.get(index));
+			this.setAttributeValue(var, attrs.get(index));
 		}
 		return true;
 	}
 	@Override
-	public boolean setAttributeValue(String variable, Object value) {
+	public boolean setAttributeValue(String variable, Attribute attr) {
 		String topic = this.topic + variable;
-		String content = String.valueOf(value);
-		this.registeredAttributes.put(variable, value);		
+		String content = String.valueOf(attr.getValue());
+		this.registeredAttributes.put(variable, attr);		
 		MqttMessage message = new MqttMessage(content.getBytes());
 		try {
 			this.mqttClient.publish(topic, message);
@@ -193,26 +194,7 @@ public class MQTTEndpoint implements Endpoint {
 		}
 		return success;
 	}
-	@Override
-	public Object getAttributeValue(String attrName, String twinName) {
-		// Not valid for this asynchronous method
-		return null;
-	}
-	@Override
-	public Object getAttributeValue(String attrName, int entry) {
-		// Not valid for this asynchronous method
-		return null;
-	}
-	@Override
-	public Object getAttributeValue(String attrName, int entry, String twinName) {
-		// Not valid for this asynchronous method
-		return null;
-	}
-	@Override
-	public boolean setAttributeValue(String attrName, Object val, String twinName) {
-		// Not valid for this method
-		return false;
-	}
+
 	@Override
 	public void setClock(Clock clock) {
 		this.clock = clock;
@@ -235,6 +217,24 @@ public class MQTTEndpoint implements Endpoint {
 	
 	public String getTwinName() {
 		return twinName;
+	}
+	
+	@Override
+	public Attribute getAttributeValue(String attrName, Clock clock) {
+		this.setClock(clock);
+		return this.getAttributeValue(attrName);
+	}
+
+	@Override
+	public boolean setAttributeValue(String attrName, Attribute attr, Clock clock) {
+		this.setClock(clock);
+		return this.setAttributeValue(attrName, attr);
+	}
+
+	@Override
+	public boolean executeOperation(String opName, List<?> arguments, Clock clock) {
+		this.setClock(clock);
+		return this.executeOperation(opName, arguments);
 	}
 
 }

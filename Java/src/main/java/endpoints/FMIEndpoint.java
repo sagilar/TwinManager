@@ -11,18 +11,19 @@ import org.javafmi.wrapper.Simulation;
 
 import config.TwinConfiguration;
 import model.Clock;
+import model.composition.Attribute;
 import model.composition.Operation;
 
 
-public class FMIEndpoint implements Endpoint {
+public class FMIEndpoint implements IndividualEndpoint {
 	
-	private String twinName = "";
+	public String twinName = "";
 	private double stepSize = 0.0;
 	private TwinConfiguration twinConfig;
 	private String fmuPath;
 	
 	public Simulation simulation;
-	private Map<String,Object> registeredAttributes;
+	private Map<String,Attribute> registeredAttributes;
 	private Map<String,Operation> registeredOperations;
 	private Clock clock;
 	
@@ -34,38 +35,44 @@ public class FMIEndpoint implements Endpoint {
 		this.simulation = new Simulation(this.fmuPath);
 		this.clock = new Clock();
 		
-		this.registeredAttributes = new HashMap<String,Object>();
+		this.registeredAttributes = new HashMap<String,Attribute>();
 		this.registeredOperations = new HashMap<String,Operation>();
 	}
 	
-	public List<Object> getAttributeValues(List<String> variables) {
-		Object value = null;
-		List<Object> values = new ArrayList<Object>();
+	public List<Attribute> getAttributeValues(List<String> variables) {
+		Object value = new Object();
+		Attribute attr = new Attribute();
+		List<Attribute> attrs = new ArrayList<Attribute>();
 		for(String var : variables) {
 			value = simulation.read(var).asEnumeration();
-			values.add(value);
+			attr.setName(var);
+			attr.setValue(value);
+			attrs.add(attr);
 		}
-		return values;
+		return attrs;
 	}
 	
-	public Object getAttributeValue(String variable) {
+	public Attribute getAttributeValue(String variable) {
 		String variableAlias = mapAlias(variable);
-		double value = simulation.read(variableAlias).asDouble();
-		return value;
+		Attribute tmpAttr = new Attribute();
+		tmpAttr.setName(variable);		
+		Object value = simulation.read(variableAlias);
+		tmpAttr.setValue(value);
+		return tmpAttr;
 	}
 	
-	public boolean setAttributeValues(List<String> variables,List<Object> values) {
+	public boolean setAttributeValues(List<String> variables,List<Attribute> attrs) {		
 		for(String var : variables) {
 			int index = variables.indexOf(var);
 			String mappedVariable = mapAlias(var);
-			simulation.write(mappedVariable).with(Double.valueOf(values.get(index).toString()));
+			simulation.write(mappedVariable).with(Double.valueOf(attrs.get(index).getValue().toString()));
 		}
 		return true;
 	}
 	
-	public boolean setAttributeValue(String variable,Object value) {
+	public boolean setAttributeValue(String variable,Attribute attr) {
 		String mappedVariable = mapAlias(variable);
-		simulation.write(mappedVariable).with(Double.valueOf(value.toString()));
+		simulation.write(mappedVariable).with(Double.valueOf(attr.getValue().toString()));
 		return true;
 	}
 	
@@ -93,8 +100,8 @@ public class FMIEndpoint implements Endpoint {
 	}
 
 	
-	public void registerAttribute(String name, Object obj) {
-		this.registeredAttributes.put(name,obj);
+	public void registerAttribute(String name, Attribute attr) {
+		this.registeredAttributes.put(name,attr);
 	}
 
 	
@@ -105,9 +112,12 @@ public class FMIEndpoint implements Endpoint {
 			}else {
 				this.stepSize = (double) arguments.get(0);
 				if (arguments.size() > 1) {
-					Map<String,Double> args = (Map<String, Double>) arguments.get(1);
-					for (Map.Entry<String, Double> entry : args.entrySet()) {
-					    this.setAttributeValue(entry.getKey(), entry.getValue());
+					Map<String,Object> args = (Map<String, Object>) arguments.get(1);
+					for (Map.Entry<String, Object> entry : args.entrySet()) {
+						Attribute tmpAttr = new Attribute();
+						tmpAttr.setName(entry.getKey());
+						tmpAttr.setValue(entry.getValue());
+						this.setAttributeValue(entry.getKey(), tmpAttr);
 					}
 				}
 			}
@@ -120,44 +130,36 @@ public class FMIEndpoint implements Endpoint {
 		}
 		return true;
 	}
-
-	
-	public Object getAttributeValue(String attrName, String twinName) {
-		// Not applicable
-		return null;
-	}
-
-	
-	public boolean setAttributeValue(String attrName, Object val, String twinName) {
-		// Not applicable
-		return false;
-	}
-
 	
 	public void setClock(Clock value) {
 		this.clock = value;
 		
 	}
-
 	
 	public Clock getClock() {
 		return this.clock;
 	}
-
-	
-	public Object getAttributeValue(String attrName, int entry) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	
-	public Object getAttributeValue(String attrName, int entry, String twinName) {
-		// TODO Auto-generated method stub
-		return null;
-	}
 	
 	public String getTwinName() {
 		return twinName;
+	}
+	
+	@Override
+	public Attribute getAttributeValue(String attrName, Clock clock) {
+		this.setClock(clock);
+		return this.getAttributeValue(attrName);
+	}
+
+	@Override
+	public boolean setAttributeValue(String attrName, Attribute attr, Clock clock) {
+		this.setClock(clock);
+		return this.setAttributeValue(attrName, attr);
+	}
+
+	@Override
+	public boolean executeOperation(String opName, List<?> arguments, Clock clock) {
+		this.setClock(clock);
+		return this.executeOperation(opName, arguments);
 	}
 	
 }

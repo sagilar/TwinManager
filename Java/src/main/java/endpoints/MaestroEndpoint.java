@@ -21,8 +21,9 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigRenderOptions;
 
-import config.ComponentConfiguration;
+import config.TwinSystemConfiguration;
 import model.Clock;
+import model.composition.Attribute;
 import model.composition.Operation;
 
 import java.io.File;
@@ -35,13 +36,13 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class MaestroEndpoint implements Endpoint {
+public class MaestroEndpoint implements AggregateEndpoint {
 
 	private String twinSystemName;
 	private double stepSize = 0.0;
 	private double finalTime = 0.0;
 	private double startTime = 0.0;
-	private ComponentConfiguration systemConfig;
+	private TwinSystemConfiguration systemConfig;
 	private Config coeConfig;
 	private String outputPath;
 	String coeFilename = "coe.json";
@@ -76,7 +77,7 @@ public class MaestroEndpoint implements Endpoint {
 		return twinSystemName;
 	}
 	
-	public MaestroEndpoint(String twinSystemName, ComponentConfiguration config,String coeFilename, String outputPath)
+	public MaestroEndpoint(String twinSystemName, TwinSystemConfiguration config,String coeFilename, String outputPath)
 	{
 		//This one is the one to be used
 		this.twinSystemName = twinSystemName;
@@ -153,10 +154,10 @@ public class MaestroEndpoint implements Endpoint {
 	}
 
 	
-	public void registerAttribute(String name, Object obj) {
+	public void registerAttribute(String name, Attribute attr) {
 		//Only relevant when RabbitMQFMU is in use
 		//name = RabbitMQFMU variable
-		this.registeredAttributes.put(name,obj);
+		this.registeredAttributes.put(name,attr);
 		/*
 		String queue = name + ":queue";
 		try {
@@ -192,18 +193,18 @@ public class MaestroEndpoint implements Endpoint {
 	}
 
 	
-	public List<Object> getAttributeValues(List<String> variables) {
+	public List<Attribute> getAttributeValues(List<String> variables) {
 		// from the csv output file
-		List<Object> values = new ArrayList<Object>();
+		List<Attribute> attrs = new ArrayList<Attribute>();
 		for (String var : variables) {
-			Object value = this.getAttributeValue(var);
-			values.add(value);
+			Attribute attr = this.getAttributeValue(var);
+			attrs.add(attr);
 		}
-		return values;
+		return attrs;
 	}
 
 	
-	public Object getAttributeValue(String variable) {
+	public Attribute getAttributeValue(String variable) {
 		// from the csv output file
 		String[] entry = myEntries.get(1);
 		if (this.lastCommand.equals("simulate")) {
@@ -213,16 +214,19 @@ public class MaestroEndpoint implements Endpoint {
 		}
 		List<String> entryList = Arrays.asList(entry);
 		Object value = null;
+		Attribute attr = new Attribute();
 	    for (String column : this.columnList) {
 	    	if(variable.equals(column)) {
 	    		int i = this.columnList.indexOf(column);
 	    		value =  (Object)(entryList.get(i));
 	    	}
 	    }
-		return value;
+	    attr.setName(variable);
+	    attr.setValue(value);
+		return attr;
 	}
 	
-	public Object getAttributeValue(String variable, String twinName) {
+	public Attribute getAttributeValue(String variable, String twinName) {
 		// from the csv output file
 		String twinRaw = mapAlias(twinName);
 		String varRaw = mapAlias(variable);
@@ -235,54 +239,63 @@ public class MaestroEndpoint implements Endpoint {
 		}
 		List<String> entryList = Arrays.asList(entry);
 		Object value = null;
+		Attribute attr = new Attribute();
 	    for (String column : this.columnList) {
 	    	if(composedRaw.equals(column)) {
 	    		int i = this.columnList.indexOf(column);
 	    		value =  (Object)(entryList.get(i));
 	    	}
 	    }
-		return value;
+	    attr.setName(variable);
+	    attr.setValue(value);
+		return attr;
 	}
 	
-	public Object getAttributeValue(String variable, int position) {
+	public Attribute getAttributeValue(String variable, Clock clock) {
 		// from the csv output file
-		String[] entry = myEntries.get(position);
+		String[] entry = myEntries.get(clock.getNow());
 		List<String> entryList = Arrays.asList(entry);
 		Object value = null;
+		Attribute attr = new Attribute();
 	    for (String column : this.columnList) {
 	    	if(variable.equals(column)) {
 	    		int i = this.columnList.indexOf(column);
 	    		value =  (Object)(entryList.get(i));
 	    	}
 	    }
-		return value;
+	    attr.setName(variable);
+	    attr.setValue(value);
+		return attr;
 	}
 	
-	public Object getAttributeValue(String variable, int position, String twinName) {
+	public Attribute getAttributeValue(String variable, String twinName, Clock clock) {
 		// from the csv output file
 		String twinRaw = mapAlias(twinName);
 		String varRaw = mapAlias(variable);
 		String composedRaw = twinRaw + "." + varRaw;
-		String[] entry = myEntries.get(position);
+		String[] entry = myEntries.get(clock.getNow());
 		List<String> entryList = Arrays.asList(entry);
 		Object value = null;
+		Attribute attr = new Attribute();
 	    for (String column : this.columnList) {
 	    	if(composedRaw.equals(column)) {
 	    		int i = this.columnList.indexOf(column);
 	    		value =  (Object)(entryList.get(i));
 	    	}
 	    }
-		return value;
+	    attr.setName(variable);
+	    attr.setValue(value);
+		return attr;
 	}
 	
 	
-	public boolean setAttributeValues(List<String> variables, List<Object> values) {
+	public boolean setAttributeValues(List<String> variables, List<Attribute> attrs) {
 		if(this.rabbitMQEnabled) {
 			Map<String,String> body = new HashMap<String,String>();
 			String ts = ZonedDateTime.now( ZoneOffset.UTC ).format( DateTimeFormatter.ISO_INSTANT);
 			body.put("time", ts);
 			for (int i=0; i<variables.size();i++) {				
-				body.put(variables.get(i), values.get(i).toString());				
+				body.put(variables.get(i), attrs.get(i).getValue().toString());				
 			}
 			JSONObject bodyJSON = new JSONObject(body);
 			String bodyMessage = bodyJSON.toString();
@@ -291,19 +304,19 @@ public class MaestroEndpoint implements Endpoint {
 			// On the multimodel.json file
 			for (String var : variables) {
 				int index = variables.indexOf(var);
-				this.setAttributeValue(var, values.get(index));
+				this.setAttributeValue(var, attrs.get(index));
 			}
 		}
 		return true;		
 	}
 
 	
-	public boolean setAttributeValue(String variable, Object value) {
+	public boolean setAttributeValue(String variable, Attribute attr) {
 		if(this.rabbitMQEnabled) {
 			Map<String,String> body = new HashMap<String,String>();
 			String ts = ZonedDateTime.now( ZoneOffset.UTC ).format( DateTimeFormatter.ISO_INSTANT);
 			body.put("time", ts);
-			body.put(variable, value.toString());
+			body.put(variable, attr.getValue().toString());
 			JSONObject bodyJSON = new JSONObject(body);
 			String bodyMessage = bodyJSON.toString();
 			this.rawSend(bodyMessage);
@@ -313,7 +326,7 @@ public class MaestroEndpoint implements Endpoint {
 			JSONObject completeJsonObject = new JSONObject(fileString);
 			if (variable.equals("step_size") || variable.equals("stepSize")) {
 				JSONObject innerjsonObject = new JSONObject(fileString).getJSONObject("algorithm");
-				innerjsonObject.put("size",value);
+				innerjsonObject.put("size",attr.getValue());
 				completeJsonObject.put("algorithm", innerjsonObject);
 				try (FileWriter file = new FileWriter(this.simulationFilename)) 
 		        {
@@ -325,7 +338,7 @@ public class MaestroEndpoint implements Endpoint {
 				}
 			}else {
 				JSONObject innerjsonObject = new JSONObject(fileString).getJSONObject("parameters");
-				innerjsonObject.put(variable,value);
+				innerjsonObject.put(variable,attr.getValue());
 				completeJsonObject.put("parameters", innerjsonObject);
 				try (FileWriter file = new FileWriter(this.simulationFilename)) 
 		        {
@@ -337,17 +350,17 @@ public class MaestroEndpoint implements Endpoint {
 					e.printStackTrace();
 				}
 			}
-			this.systemConfig = new ComponentConfiguration(this.simulationFilename);
+			this.systemConfig = new TwinSystemConfiguration(this.simulationFilename);
 		}
 		return true;
 	}
 	
-	public boolean setAttributeValue(String variable, Object value, String twinName) {
+	public boolean setAttributeValue(String variable, Attribute attr, String twinName) {
 		if(this.rabbitMQEnabled) {
 			Map<String,String> body = new HashMap<String,String>();
 			String ts = ZonedDateTime.now( ZoneOffset.UTC ).format( DateTimeFormatter.ISO_INSTANT);
 			body.put("time", ts);
-			body.put(variable, value.toString());
+			body.put(variable, attr.getValue().toString());
 			JSONObject bodyJSON = new JSONObject(body);
 			String bodyMessage = bodyJSON.toString();
 			this.rawSend(bodyMessage);
@@ -361,7 +374,7 @@ public class MaestroEndpoint implements Endpoint {
 			JSONObject completeJsonObject = new JSONObject(fileString);
 			if (variable.equals("step_size") || variable.equals("stepSize")) {
 				JSONObject innerjsonObject = new JSONObject(fileString).getJSONObject("algorithm");
-				innerjsonObject.put("size",value);
+				innerjsonObject.put("size",attr.getValue());
 				completeJsonObject.put("algorithm", innerjsonObject);
 				try (FileWriter file = new FileWriter(this.simulationFilename)) 
 		        {
@@ -373,7 +386,7 @@ public class MaestroEndpoint implements Endpoint {
 				}
 			}else {
 				JSONObject innerjsonObject = new JSONObject(fileString).getJSONObject("parameters");
-				innerjsonObject.put(composedRaw,value);
+				innerjsonObject.put(composedRaw,attr.getValue());
 				completeJsonObject.put("parameters", innerjsonObject);
 				try (FileWriter file = new FileWriter(this.simulationFilename)) 
 		        {
@@ -385,7 +398,7 @@ public class MaestroEndpoint implements Endpoint {
 					e.printStackTrace();
 				}
 			}
-			this.systemConfig = new ComponentConfiguration(this.simulationFilename);
+			this.systemConfig = new TwinSystemConfiguration(this.simulationFilename);
 		}
 		return true;
 	}
@@ -469,9 +482,13 @@ public class MaestroEndpoint implements Endpoint {
 			}else {
 				this.stepSize = (double) arguments.get(0);
 				if (arguments.size() > 1) {
-					Map<String,Double> args = (Map<String, Double>) arguments.get(1);
-					for (Map.Entry<String, Double> entry : args.entrySet()) {
-					    this.setAttributeValue(entry.getKey(), entry.getValue());
+					
+					Map<String,Object> args = (Map<String, Object>) arguments.get(1);
+					for (Map.Entry<String, Object> entry : args.entrySet()) {
+						Attribute tmpAttr = new Attribute();
+						tmpAttr.setName(entry.getKey());
+						tmpAttr.setValue(entry.getValue());
+					    this.setAttributeValue(entry.getKey(), tmpAttr);
 					}
 				}
 			}
@@ -483,9 +500,12 @@ public class MaestroEndpoint implements Endpoint {
 			}else {
 				this.stepSize = (double) arguments.get(0);
 				if (arguments.size() > 1) {
-					Map<String,Double> args = (Map<String, Double>) arguments.get(1);
-					for (Map.Entry<String, Double> entry : args.entrySet()) {
-					    this.setAttributeValue(entry.getKey(), entry.getValue());
+					Map<String,Object> args = (Map<String, Object>) arguments.get(1);
+					for (Map.Entry<String, Object> entry : args.entrySet()) {
+						Attribute tmpAttr = new Attribute();
+						tmpAttr.setName(entry.getKey());
+						tmpAttr.setValue(entry.getValue());
+						this.setAttributeValue(entry.getKey(), tmpAttr);
 					}
 				}
 			}
@@ -498,9 +518,6 @@ public class MaestroEndpoint implements Endpoint {
 		this.clock = value;
 	}
 	
-	public void setClock(int value) {
-		this.clock.setClock(value);
-	}
 	
 	public Clock getClock() {
 		return this.clock;
@@ -517,6 +534,24 @@ public class MaestroEndpoint implements Endpoint {
 		return out;
 	}
 	
+	@Override
+	public boolean setAttributeValue(String attrName, Attribute attr, Clock clock) {
+		this.setClock(clock);
+		return this.setAttributeValue(attrName, attr);
+	}
+
+	@Override
+	public boolean executeOperation(String opName, List<?> arguments, Clock clock) {
+		this.setClock(clock);
+		return this.executeOperation(opName, arguments);
+	}
+
+	@Override
+	public boolean setAttributeValue(String attrName, Attribute attr, String twinName, Clock clock) {
+		this.setClock(clock);
+		return this.setAttributeValue(attrName, attr, twinName);
+	}
+	
 	/***** RabbitMQFMU support *****/
 	public void rawSend(String message) {
 		if (this.flagSend == true) {
@@ -528,5 +563,7 @@ public class MaestroEndpoint implements Endpoint {
 		}
 		
 	}
+
+	
 
 }

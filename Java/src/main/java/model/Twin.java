@@ -18,7 +18,7 @@ import endpoints.FMIEndpoint;
 
 
 public class Twin {
-	public Map<String,Object> attributes;
+	public Map<String,Attribute> attributes;
 	public Map<String,Operation> operations;
 	private TwinConfiguration config;
 	private String name;
@@ -26,26 +26,10 @@ public class Twin {
 	private Clock clock;
 	private TwinSchema schema;
 	
-	public String getName() {
-		return name;
-	}
-	
-	public Endpoint getEndpoint() {
-		return this.endpoint;
-	}
-	
-	public void setEndpoint(Endpoint endpoint) {
-		this.endpoint = endpoint;
-	}
 
-	public Twin(){
-		this.attributes = new HashMap<String,Object>();
-		this.operations = new HashMap<String,Operation>();
-		this.clock = new Clock();
-	}
-
+	/***** Constructors *****/
 	public Twin(String name, TwinSchema definition){
-		this.attributes = new HashMap<String,Object>();
+		this.attributes = new HashMap<String,Attribute>();
 		this.operations = new HashMap<String,Operation>();
 		this.name = name;
 		this.schema = definition;
@@ -55,7 +39,7 @@ public class Twin {
 	public Twin(String name, TwinConfiguration config) {
 		this.name = name;
 		this.config = config;
-		this.attributes = new HashMap<String,Object>();
+		this.attributes = new HashMap<String,Attribute>();
 		this.operations = new HashMap<String,Operation>();
 		this.clock = new Clock();
 		
@@ -74,7 +58,7 @@ public class Twin {
 	public Twin(String name, TwinSchema definition, TwinConfiguration config) {
 		this.name = name;
 		this.config = config;
-		this.attributes = new HashMap<String,Object>();
+		this.attributes = new HashMap<String,Attribute>();
 		this.operations = new HashMap<String,Operation>();
 		this.schema = definition;
 		this.clock = new Clock();
@@ -91,11 +75,153 @@ public class Twin {
 		} else if(config.conf.hasPath("henshin")) {}
 	}
 	
-	public Map<String,Object> getAttributes(){
+	
+	
+	/***** Standard interface methods *****/
+
+	public Attribute getAttributeValue(String attrName) {
+		if (this.endpoint instanceof RabbitMQEndpoint) {
+			Attribute attr = null;
+			try {
+				attr = this.endpoint.getAttributeValue(attrName);
+				this.attributes.put(attrName, attr);
+			} catch(Exception e) {}
+		} else if(this.endpoint instanceof MQTTEndpoint) {
+			Attribute attr = null;
+			try {
+				attr = this.endpoint.getAttributeValue(attrName);
+				this.attributes.put(attrName, attr);
+			} catch(Exception e) {}
+			
+		}
+		else if(this.endpoint instanceof FMIEndpoint) {
+			Attribute attr = this.endpoint.getAttributeValue(attrName);
+			try {
+				this.attributes.put(attrName,attr);
+			} catch(Exception e) {}
+		}
+		return this.getAttribute(attrName);		
+	}
+	
+	
+	
+	public boolean setAttributeValue(String attrName, Attribute attr) {
+		this.attributes.put(attrName,attr);
+		if (this.endpoint instanceof RabbitMQEndpoint) {
+			this.endpoint.setAttributeValue(attrName, attr);	
+		} else if (this.endpoint instanceof MQTTEndpoint) {
+			this.endpoint.setAttributeValue(attrName, attr);
+		}		
+		else if (this.endpoint instanceof FMIEndpoint) {
+			this.endpoint.setAttributeValue(attrName, attr);
+		}
+		return true;
+	}
+	
+	
+
+	public boolean executeOperation(String opName, List<?> arguments) {
+		if (this.endpoint instanceof RabbitMQEndpoint) {
+			if (arguments == null) {
+				this.endpoint.executeOperation(opName, null);
+			}else {
+				this.endpoint.executeOperation(opName, arguments);
+			}
+		} else if (this.endpoint instanceof MQTTEndpoint) {
+			if (arguments == null) {
+				this.endpoint.executeOperation(opName, null);
+			}else {
+				this.endpoint.executeOperation(opName, arguments);
+			}
+		} else if(this.endpoint instanceof FMIEndpoint) {
+			this.endpoint.executeOperation(opName, arguments);
+		}
+		return true;
+	}
+	
+	/**** Time-based methods *****/
+	
+	public Attribute getAttributeValue(String attrName, Clock clock) {
+		this.endpoint.setClock(clock);
+		this.setClock(clock);
+		if (this.endpoint instanceof RabbitMQEndpoint) {
+			Attribute attr = null;
+			try {
+				attr = this.endpoint.getAttributeValue(attrName, clock);
+				this.attributes.put(attrName, attr);
+			} catch(Exception e) {}
+		} else if(this.endpoint instanceof MQTTEndpoint) {
+			Attribute attr = null;
+			try {
+				attr = this.endpoint.getAttributeValue(attrName, clock);
+				this.attributes.put(attrName, attr);
+			} catch(Exception e) {}
+			
+		}
+		else if(this.endpoint instanceof FMIEndpoint) {
+			Attribute attr = this.endpoint.getAttributeValue(attrName, clock);
+			try {
+				this.attributes.put(attrName,attr);
+			} catch(Exception e) {}
+		}
+		return this.getAttribute(attrName);	
+	}
+	
+	public boolean setAttributeValue(String attrName, Attribute attr, Clock clock) {
+		this.endpoint.setClock(clock);
+		this.setClock(clock);
+		this.attributes.put(attrName, attr);
+		if (this.endpoint instanceof RabbitMQEndpoint) {
+			this.endpoint.setAttributeValue(attrName, attr, clock);	
+		} else if (this.endpoint instanceof MQTTEndpoint) {
+			this.endpoint.setAttributeValue(attrName, attr, clock);
+		}		
+		else if (this.endpoint instanceof FMIEndpoint) {
+			this.endpoint.setAttributeValue(attrName, attr, clock);
+		}
+		return true;
+	}
+	
+	public boolean executeOperation(String opName, List<?> arguments, Clock clock) {
+		this.endpoint.setClock(clock);
+		this.setClock(clock);
+		if (this.endpoint instanceof RabbitMQEndpoint) {
+			if (arguments == null) {
+				this.endpoint.executeOperation(opName, null, clock);
+			}else {
+				this.endpoint.executeOperation(opName, arguments, clock);
+			}
+		} else if (this.endpoint instanceof MQTTEndpoint) {
+			if (arguments == null) {
+				this.endpoint.executeOperation(opName, null, clock);
+			}else {
+				this.endpoint.executeOperation(opName, arguments, clock);
+			}
+		} else if(this.endpoint instanceof FMIEndpoint) {
+			this.endpoint.executeOperation(opName, arguments, clock);
+		}
+		return true;	
+	}
+	
+	/***** Auxiliary methods *****/	
+	
+	public String getName() {
+		return name;
+	}
+	
+	public Endpoint getEndpoint() {
+		return this.endpoint;
+	}
+	
+	public void setEndpoint(Endpoint endpoint) {
+		this.endpoint = endpoint;
+	}
+	
+	public Map<String,Attribute> getAttributes(){
 		return this.attributes;
 	}
 	
-	public Object getAttribute(String attrName){
+	public Attribute getAttribute(String attrName){
 		return this.attributes.get(attrName);
 	}
 	
@@ -118,80 +244,24 @@ public class Twin {
 
 	public void registerOperations(List<Operation> operations) {
 		for (Operation op : operations) {
-			this.attributes.put(op.getName(), new Object());
+			this.operations.put(op.getName(), new Operation());
 			this.endpoint.registerOperation(this.name,op);
 		}
 	}
 	
 	public void registerAttributes(List<Attribute> attributes) {
 		for (Attribute attr : attributes) {
-			this.attributes.put(attr.getName(), new Object());
+			this.attributes.put(attr.getName(), attr);
 			this.endpoint.registerAttribute(attr.getName(),this.getAttribute(attr.getName())); 
 		}		
 		
-	}
-
-	public Object getAttributeValue(String attrName) {
-		if (this.endpoint instanceof RabbitMQEndpoint) {
-			Object value = null;
-			try {
-				value = this.endpoint.getAttributeValue(attrName);
-				this.attributes.put(attrName, value);
-			} catch(Exception e) {}
-		} else if(this.endpoint instanceof MQTTEndpoint) {
-			Object value = null;
-			try {
-				value = this.endpoint.getAttributeValue(attrName);
-				this.attributes.put(attrName, value);
-			} catch(Exception e) {}
-			
-		}
-		else if(this.endpoint instanceof FMIEndpoint) {
-			Object value = this.endpoint.getAttributeValue(attrName);
-			try {
-				this.attributes.put(attrName,value);
-			} catch(Exception e) {}
-		}
-		return this.getAttribute(attrName);		
-	}
-	
-	public boolean setAttributeValue(String attrName, Object val) {
-		this.attributes.put(attrName,val);
-		if (this.endpoint instanceof RabbitMQEndpoint) {
-			this.endpoint.setAttributeValue(attrName, val);	
-		} else if (this.endpoint instanceof MQTTEndpoint) {
-			this.endpoint.setAttributeValue(attrName, val);
-		}		
-		else if (this.endpoint instanceof FMIEndpoint) {
-			this.endpoint.setAttributeValue(attrName, Double.valueOf(val.toString()));
-		}
-		return true;
-	}
-
-	public boolean executeOperation(String opName, List<?> arguments) {
-		if (this.endpoint instanceof RabbitMQEndpoint) {
-			if (arguments == null) {
-				this.endpoint.executeOperation(opName, null);
-			}else {
-				this.endpoint.executeOperation(opName, arguments);
-			}
-		} else if (this.endpoint instanceof MQTTEndpoint) {
-			if (arguments == null) {
-				this.endpoint.executeOperation(opName, null);
-			}else {
-				this.endpoint.executeOperation(opName, arguments);
-			}
-		} else if(this.endpoint instanceof FMIEndpoint) {
-			this.endpoint.executeOperation(opName, arguments);
-		}
-		return true;
 	}
 
 	public Clock getTime() {
 		return this.clock;
 	}
 
-	public void setTime(Clock clock) {
+	public void setClock(Clock clock) {
 		this.clock = clock;
 	}
 

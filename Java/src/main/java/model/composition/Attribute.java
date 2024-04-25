@@ -9,6 +9,11 @@ public class Attribute {
 		value = new Object();
 	}
 	
+	public Attribute(String attrName, Object value) {
+		this.name = attrName;
+		this.value = value;
+	}
+	
 	public String getName() {
 		return this.name;
 	}
@@ -17,11 +22,11 @@ public class Attribute {
 		this.name = name;
 	}
 	
-	public void setAttributeValue(Object value) {
+	public void setValue(Object value) {
 		this.value = value;
 	}
 	
-	public Object getAttributeValue() {
+	public Object getValue() {
 		return this.value;
 	}
 }
