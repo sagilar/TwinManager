@@ -60,7 +60,7 @@
 		<dependency>
 		  	<groupId>org.json</groupId>
 		  	<artifactId>json</artifactId>
-		  	<version>20211205</version>
+		  	<version>20250107</version>
 		</dependency>
 		<dependency>
 		    <groupId>com.typesafe</groupId>
@@ -75,7 +75,7 @@
 		<dependency>
 		  <groupId>org.into-cps.maestro</groupId>
 		  <artifactId>maestro</artifactId>
-		  <version>2.3.0</version>
+		  <version>3.0.1</version>
 		</dependency>
 		<dependency>
 		  <groupId>com.opencsv</groupId>

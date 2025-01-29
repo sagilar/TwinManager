@@ -1,12 +1,24 @@
 package management;
 
 
+import java.io.IOException;
+//import java.io.ObjectInputFilter.Config;
+//import java.nio.channels.Channel;
+//import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 
+import org.json.JSONObject;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.DeliverCallback;
+
+import config.AsyncConfig;
 import config.TwinSystemConfiguration;
 import config.TwinConfiguration;
 import model.Clock;
@@ -40,6 +52,30 @@ public class TwinManager {
     public Map<String,TwinSchema> getSchemas(){
     	return this.twinSchemaMapping;
     }
+
+	// Async messaging (RabbitMQ and RabbitMQFMU)
+	boolean flagSend = false;
+	String ip;
+	int port;
+	String username;
+	String password;
+	String exchange;
+	String type;
+	String vhost;
+	String routingKeyFromCosim;
+	String routingKeyToCosim;
+	String rmqMessage = "";
+	String rmqMessageFromCosim = "";
+	String rmqMessageToCosim = "";
+	ConnectionFactory factory;
+	Connection conn;
+	Channel channelFromCosim;
+	Channel channelToCosim;
+	DeliverCallback deliverCallbackFromCosim;
+	DeliverCallback deliverCallbackToCosim;
+	boolean async;
+
+	
     
     /***** Initialization *****/
 
@@ -426,6 +462,236 @@ public class TwinManager {
 		twinSystem.setClock(clock);
 		Attribute attr = twinSystem.getAttributeValue(attrName, twinName, clock);
 		return attr;
-	}	
+	}
 
+
+	/* Async messaging */
+	public void setAsync(AsyncConfig config){
+		
+		if (config.conf.hasPath("rabbitmq")) {
+			//System.out.println("RabbitMQ enabled");
+			this.ip = config.conf.getString("rabbitmq.ip");
+			this.port = config.conf.getInt("rabbitmq.port");
+			this.username = config.conf.getString("rabbitmq.username");
+			this.password = config.conf.getString("rabbitmq.password");
+			this.exchange = config.conf.getString("rabbitmq.exchange");
+			this.type = config.conf.getString("rabbitmq.type");
+			this.vhost = config.conf.getString("rabbitmq.vhost");
+			this.routingKeyFromCosim = config.conf.getString("rabbitmq.routing_key_from_cosim");
+			this.routingKeyToCosim = config.conf.getString("rabbitmq.routing_key_to_cosim");
+			
+			this.deliverCallbackFromCosim = (consumerTagFrom, deliveryFrom) -> {
+				this.rmqMessageFromCosim = new String(deliveryFrom.getBody(), "UTF-8");
+				String keyStart = "waiting for input data for simulation";
+				if (this.rmqMessageFromCosim.contains(keyStart)) {
+					this.flagSend = true;
+					/* Execute the publishing after this message has been received */
+				}
+				};
+
+			this.deliverCallbackToCosim = (consumerTagTo, deliveryTo) -> {
+				this.rmqMessageToCosim = new String(deliveryTo.getBody(), "UTF-8");
+				};
+			
+			this.factory = new ConnectionFactory();
+			if (this.password.equals("")){
+				
+			}else {
+				this.factory.setUsername(this.username);
+				this.factory.setPassword(this.password);
+			}
+			this.factory.setVirtualHost(this.vhost);
+			this.factory.setHost(this.ip);
+			this.factory.setPort(this.port);
+
+			try {
+				this.conn = this.factory.newConnection();
+				this.channelFromCosim = this.conn.createChannel();
+				this.channelFromCosim.exchangeDeclare(this.exchange,"direct");
+				String queueNameFromCosim = this.channelFromCosim.queueDeclare().getQueue();
+				this.channelFromCosim.queueBind(queueNameFromCosim, this.exchange, this.routingKeyFromCosim);				
+				this.channelFromCosim.basicConsume(queueNameFromCosim, this.deliverCallbackFromCosim, consumerTagFrom -> { });
+				this.channelToCosim = this.conn.createChannel();
+				this.channelToCosim.exchangeDeclare(this.exchange,"direct");
+				String queueNameToCosim = this.channelToCosim.queueDeclare().getQueue();
+				this.channelToCosim.queueBind(queueNameToCosim, this.exchange, this.routingKeyToCosim);
+				this.channelToCosim.basicConsume(queueNameToCosim, this.deliverCallbackToCosim, consumerTagTo -> { });
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (TimeoutException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+			this.async =  true;			
+		}
+	}
+
+	public void setSync(){
+		this.async = false;
+		try {
+			this.conn.close();	
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	public Object getAsyncAttribute(String attrName){
+		if (this.async == true){
+			try{
+				JSONObject jsonObject = new JSONObject(rmqMessageToCosim);  
+				Object attrObj =  jsonObject.get(attrName);
+				return attrObj;
+			} catch (Exception e) {
+				return "";
+			}	
+		} else {
+			return "";
+		}
+
+	}
+
+	public Object getAsyncAttribute(String attrName, String twinName){
+		if (this.async == true){
+			try{
+				JSONObject jsonObject = new JSONObject(rmqMessageToCosim);  
+				Object attrObj =  jsonObject.get(attrName);
+				return attrObj;
+			} catch (Exception e) {
+				return "";
+			}	
+		} else {
+			return "";
+		}
+	}
+
+	public Object getAsyncAttributeOnSystem(String attrName, String twinName, String twinSystemName){
+		if (this.async == true){
+			try{
+				JSONObject jsonObject = new JSONObject(rmqMessageToCosim);  
+				Object attrObj =  jsonObject.get(attrName);
+				return attrObj;
+			} catch (Exception e) {
+				return "";
+			}	
+		} else {
+			return "";
+		}
+	}
+
+	public Object getAsyncAttributeOnSystem(String attrName, String twinSystemName){
+		if (this.async == true){
+			try{
+				JSONObject jsonObject = new JSONObject(rmqMessageToCosim);  
+				Object attrObj =  jsonObject.get(attrName);
+				return attrObj;
+			} catch (Exception e) {
+				return "";
+			}			
+		} else {
+			return "";
+		}
+	}
+
+	/* TBD: Async writing methods */
+	public boolean setAsyncAttribute(String attrName, Attribute attr){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttribute(String attrName, Attribute attr, String twinName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttributeOnSystem(String attrName, Attribute attr, String twinSystemName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttributeOnSystem(String attrName, Attribute attr, String twinName, String twinSystemName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttribute(String attrName, Object value){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttribute(String attrName, Object value, String twinName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttributeOnSystem(String attrName, Object value, String twinSystemName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttributeOnSystem(String attrName, Object value, String twinName, String twinSystemName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	
+
+	/* TBD: Async execution */
+	public boolean executeAsyncOperation(String opName, List<?> arguments){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttribute(String opName, List<?> arguments, String twinName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttributeOnSystem(String opName, List<?> arguments, String twinSystemName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
+
+	public boolean setAsyncAttributeOnSystem(String opName, List<?> arguments, String twinName, String twinSystemName){
+		if (this.async == true && this.flagSend == true){
+
+		} else {
+		}
+		return true;
+	}
 }
