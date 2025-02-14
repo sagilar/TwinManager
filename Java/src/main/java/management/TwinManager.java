@@ -2,9 +2,6 @@ package management;
 
 
 import java.io.IOException;
-//import java.io.ObjectInputFilter.Config;
-//import java.nio.channels.Channel;
-//import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -73,7 +70,7 @@ public class TwinManager {
 	Channel channelToCosim;
 	DeliverCallback deliverCallbackFromCosim;
 	DeliverCallback deliverCallbackToCosim;
-	boolean async;
+	public boolean async;
 
 	
     
@@ -176,6 +173,7 @@ public class TwinManager {
 	/***** Copying, cloning, and synchronization *****/
 	
 	public void copyTwin(String nameFrom, String nameTo, Clock clock) {
+		// TO BE IMPROVED
 		if(clock != null && clock.getNow() > getTimeFrom(nameFrom).getNow()) {
 			this.waitUntil(clock);
 		}
@@ -204,6 +202,7 @@ public class TwinManager {
 	}
 	
 	void cloneTwin(String nameFrom, String nameTo, Clock clock){
+		// TO BE IMPROVED
 		if(clock != null && clock.getNow() > getTimeFrom(nameFrom).getNow()) {
 			this.waitUntil(clock);
 		}
@@ -216,13 +215,7 @@ public class TwinManager {
 	/**** Execution of operations in multiple twins at once ****/
 	
 	public boolean executeOperationOnTwins(String opName, List<?> arguments,List<String> twins) {
-		List<String> twinsToCheck = twins;
-		if(twinsToCheck == null) {
-			for(String temp : this.availableTwins.keySet()) {
-				twinsToCheck.add(temp);
-			}
-		}
-		for(String twin : twinsToCheck){
+		for(String twin : twins){
 			Twin currentTwin = this.availableTwins.get(twin);
 			currentTwin.setClock(this.clock);
 			currentTwin.executeOperation(opName, arguments);
@@ -333,10 +326,7 @@ public class TwinManager {
 	}
 		
 	private void waitUntil(Clock clock) {
-		//To be improved. It requires semaphores
-		/*while(this.clock.getNow() != clock.getNow()) {
-			//Waits until
-		}*/
+		//TO BE IMPLEMENTED
 	}
 	
 	public void setClock(Clock clock) {
@@ -415,9 +405,11 @@ public class TwinManager {
 		TwinSystem twinSystem = this.availableTwinSystems.get(systemName);
 		twinSystem.setClock(this.clock);
 		List<Attribute> attrs = new ArrayList<Attribute>();
+		int idx = 0;
 		for(Object val : values){			
-			Attribute attr = new Attribute(attrNames.get(values.indexOf(val)),val);
+			Attribute attr = new Attribute(attrNames.get(idx),val);
 			attrs.add(attr);
+			idx++;
 		}
 		return twinSystem.setAttributeValues(attrNames, attrs);
 	}
@@ -465,11 +457,10 @@ public class TwinManager {
 	}
 
 
-	/* Async messaging */
+	/* Async messaging --- Only for testing and synchronizing clocks -- These are not bound to a specific twin or twin system */
 	public void setAsync(AsyncConfig config){
 		
 		if (config.conf.hasPath("rabbitmq")) {
-			//System.out.println("RabbitMQ enabled");
 			this.ip = config.conf.getString("rabbitmq.ip");
 			this.port = config.conf.getInt("rabbitmq.port");
 			this.username = config.conf.getString("rabbitmq.username");
@@ -541,7 +532,7 @@ public class TwinManager {
 	public Object getAsyncAttribute(String attrName){
 		if (this.async == true){
 			try{
-				JSONObject jsonObject = new JSONObject(rmqMessageToCosim);  
+				JSONObject jsonObject = new JSONObject(this.rmqMessageFromCosim);  
 				Object attrObj =  jsonObject.get(attrName);
 				return attrObj;
 			} catch (Exception e) {
@@ -556,7 +547,7 @@ public class TwinManager {
 	public Object getAsyncAttribute(String attrName, String twinName){
 		if (this.async == true){
 			try{
-				JSONObject jsonObject = new JSONObject(rmqMessageToCosim);  
+				JSONObject jsonObject = new JSONObject(this.rmqMessageFromCosim);  
 				Object attrObj =  jsonObject.get(attrName);
 				return attrObj;
 			} catch (Exception e) {
@@ -570,7 +561,7 @@ public class TwinManager {
 	public Object getAsyncAttributeOnSystem(String attrName, String twinName, String twinSystemName){
 		if (this.async == true){
 			try{
-				JSONObject jsonObject = new JSONObject(rmqMessageToCosim);  
+				JSONObject jsonObject = new JSONObject(this.rmqMessageFromCosim);  
 				Object attrObj =  jsonObject.get(attrName);
 				return attrObj;
 			} catch (Exception e) {
@@ -583,8 +574,9 @@ public class TwinManager {
 
 	public Object getAsyncAttributeOnSystem(String attrName, String twinSystemName){
 		if (this.async == true){
+			
 			try{
-				JSONObject jsonObject = new JSONObject(rmqMessageToCosim);  
+				JSONObject jsonObject = new JSONObject(this.rmqMessageFromCosim);  
 				Object attrObj =  jsonObject.get(attrName);
 				return attrObj;
 			} catch (Exception e) {

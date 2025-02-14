@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Iterator;
 import java.util.concurrent.TimeoutException;
 import org.json.JSONObject;
 
@@ -32,7 +33,6 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -40,8 +40,6 @@ public class MaestroEndpoint implements AggregateEndpoint {
 
 	private String twinSystemName;
 	private double stepSize = 0.0;
-	private double finalTime = 0.0;
-	private double startTime = 0.0;
 	private TwinSystemConfiguration systemConfig;
 	private Config coeConfig;
 	private String outputPath;
@@ -65,13 +63,18 @@ public class MaestroEndpoint implements AggregateEndpoint {
 	String exchange;
 	String type;
 	String vhost;
-	String routingKey;
+	String routingKeyFromCosim;
+	String routingKeyToCosim;
+	String rmqMessageFromCosim = "";
+	String rmqMessageToCosim = "";
 	ConnectionFactory factory;
 	Connection conn;
-	Channel channel;
-	DeliverCallback deliverCallback;
-	private Map<String,Object> registeredAttributes;
-	private Map<String,Operation> registeredOperations;
+	Channel channelFromCosim;
+	Channel channelToCosim;
+	DeliverCallback deliverCallbackFromCosim;
+	DeliverCallback deliverCallbackToCosim;
+	private Map<String,Attribute> registeredAttributes = new HashMap<String,Attribute>();
+	private Map<String,Operation> registeredOperations = new HashMap<String,Operation>();;
 	
 	public String getTwinSystemName() {
 		return twinSystemName;
@@ -79,7 +82,6 @@ public class MaestroEndpoint implements AggregateEndpoint {
 	
 	public MaestroEndpoint(String twinSystemName, TwinSystemConfiguration config,String coeFilename, String outputPath)
 	{
-		//This one is the one to be used
 		this.twinSystemName = twinSystemName;
 		this.coeFilename = coeFilename;
 		File file = new File(coeFilename);   
@@ -88,14 +90,11 @@ public class MaestroEndpoint implements AggregateEndpoint {
 		this.systemConfig = config;
 		this.simulationFilename = this.systemConfig.conf.origin().filename();
 		this.stepSize = this.systemConfig.conf.getDouble("algorithm.size");
-		//this.finalTime = this.systemConfig.conf.getDouble("endTime");
-		//this.startTime = this.systemConfig.conf.getDouble("startTime");
-		this.registeredAttributes = new HashMap<String,Object>();		
+		this.registeredAttributes = new HashMap<String,Attribute>();		
 		this.registeredOperations = new HashMap<String,Operation>();
 		
 		/***** If RabbitMQFMU is enabled *****/
 		if (this.systemConfig.conf.hasPath("rabbitmq")) {
-			//System.out.println("RabbitMQ enabled");
 			this.rabbitMQEnabled = true;
 			this.ip = this.systemConfig.conf.getString("rabbitmq.ip");
 			this.port = this.systemConfig.conf.getInt("rabbitmq.port");
@@ -104,15 +103,39 @@ public class MaestroEndpoint implements AggregateEndpoint {
 			this.exchange = this.systemConfig.conf.getString("rabbitmq.exchange");
 			this.type = this.systemConfig.conf.getString("rabbitmq.type");
 			this.vhost = this.systemConfig.conf.getString("rabbitmq.vhost");
-			this.routingKey = this.systemConfig.conf.getString("rabbitmq.routing_key");
+			this.routingKeyFromCosim = this.systemConfig.conf.getString("rabbitmq.routing_key_from_cosim");
+			this.routingKeyToCosim = this.systemConfig.conf.getString("rabbitmq.routing_key_to_cosim");
 			
-			this.deliverCallback = (consumerTag, delivery) -> {
-				String message = new String(delivery.getBody(), "UTF-8");
+			
+			this.deliverCallbackFromCosim = (consumerTagFrom, deliveryFrom) -> {
+				this.rmqMessageFromCosim = new String(deliveryFrom.getBody(), "UTF-8");
 				String keyStart = "waiting for input data for simulation";
-				if (message.contains(keyStart)) {
+				if (this.rmqMessageFromCosim.contains(keyStart)) {
 					this.flagSend = true;
+					/* Execute the publishing after this message has been received */
 				}
-	      	};
+				try{
+					JSONObject jsonObject = new JSONObject(this.rmqMessageFromCosim);
+					Iterator<String> keys = jsonObject.keys();
+					while(keys.hasNext()) {
+						String key = keys.next();
+						Attribute tmpAttr = new Attribute();
+						tmpAttr.setName(key);
+						tmpAttr.setValue(jsonObject.get(key));
+						registeredAttributes.put(key, tmpAttr);
+						String alias = mapAlias(key);
+						Attribute tmpAttrAlias = new Attribute();
+						tmpAttrAlias.setName(alias);
+						tmpAttrAlias.setValue(jsonObject.get(key));
+						registeredAttributes.put(alias, tmpAttrAlias);
+					}
+				}catch (Exception e){
+				}
+			};
+
+			this.deliverCallbackToCosim = (consumerTagTo, deliveryTo) -> {
+				this.rmqMessageToCosim = new String(deliveryTo.getBody(), "UTF-8");
+			};
 			
 			this.factory = new ConnectionFactory();
 			if (this.password.equals("")){
@@ -127,69 +150,34 @@ public class MaestroEndpoint implements AggregateEndpoint {
 
 			try {
 				this.conn = this.factory.newConnection();
-				this.channel = this.conn.createChannel();
-				this.channel.exchangeDeclare(this.exchange,"direct");
-				String queueName = this.channel.queueDeclare().getQueue();
-				this.channel.queueBind(queueName, this.exchange, this.routingKey);
-				//this.channel.basicConsume(queueName, this.deliverCallback, null);
+				this.channelFromCosim = this.conn.createChannel();
+				this.channelFromCosim.exchangeDeclare(this.exchange,"direct");
+				String queueNameFromCosim = this.channelFromCosim.queueDeclare().getQueue();
+				this.channelFromCosim.queueBind(queueNameFromCosim, this.exchange, this.routingKeyFromCosim);				
+				this.channelFromCosim.basicConsume(queueNameFromCosim, this.deliverCallbackFromCosim, consumerTagFrom -> { });
+				this.channelToCosim = this.conn.createChannel();
+				this.channelToCosim.exchangeDeclare(this.exchange,"direct");
+				String queueNameToCosim = this.channelToCosim.queueDeclare().getQueue();
+				this.channelToCosim.queueBind(queueNameToCosim, this.exchange, this.routingKeyToCosim);
+				this.channelToCosim.basicConsume(queueNameToCosim, this.deliverCallbackToCosim, consumerTagTo -> { });
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} catch (TimeoutException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-			}
-			
-		}
-		
-		
-		
+			}			
+		}		
 	}
 
 	
 	public void registerOperation(String name, Operation op) {
-		//Only relevant when RabbitMQFMU is in use
-		//name = RabbitMQFMU variable
 		this.registeredOperations.put(name,op);
 	}
 
 	
 	public void registerAttribute(String name, Attribute attr) {
-		//Only relevant when RabbitMQFMU is in use
-		//name = RabbitMQFMU variable
 		this.registeredAttributes.put(name,attr);
-		/*
-		String queue = name + ":queue";
-		try {
-			channel.queueDeclare(queue, false, true, false, null);
-		} catch (IOException e1) {
-			e1.printStackTrace();
-		}
-		try {
-			channel.queueBind(queue, this.routingKey, this.routingKey);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		
-		
-		this.deliverCallback = (consumerTag, delivery) -> {
-			for (Map.Entry<String, Object> entry : this.registeredAttributes.entrySet()) {
-				try {
-					final String message = new String(delivery.getBody(), "UTF-8");
-			        JSONObject jsonMessage = new JSONObject(message);
-			        String alias = mapAlias(entry.getKey());
-			        Object value = jsonMessage.getJSONObject("fields").get(alias);
-			        entry.setValue(value);
-				} catch (Exception e) {
-				}
-			}
-      	};
-      	try {
-      		channel.basicConsume(queue, true, this.deliverCallback, consumerTag -> {});
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		*/
 	}
 
 	
@@ -205,50 +193,59 @@ public class MaestroEndpoint implements AggregateEndpoint {
 
 	
 	public Attribute getAttributeValue(String variable) {
-		// from the csv output file
-		String[] entry = myEntries.get(1);
-		if (this.lastCommand.equals("simulate")) {
-			entry = myEntries.get(this.clock.getNow() + 1);
-		}else if(this.lastCommand.equals("doStep")) {
-			entry = myEntries.get(2);
+		if (this.rabbitMQEnabled) {
+			return this.registeredAttributes.get(variable);
+		} else{
+			// from the csv output file
+			String[] entry = myEntries.get(1);
+			if (this.lastCommand.equals("simulate")) {
+				entry = myEntries.get(this.clock.getNow() + 1);
+			}else if(this.lastCommand.equals("doStep")) {
+				entry = myEntries.get(2);
+			}
+			List<String> entryList = Arrays.asList(entry);
+			Object value = null;
+			Attribute attr = new Attribute();
+			for (String column : this.columnList) {
+				if(variable.equals(column)) {
+					int i = this.columnList.indexOf(column);
+					value =  (Object)(entryList.get(i));
+				}
+			}
+			attr.setName(variable);
+			attr.setValue(value);
+			return attr;
 		}
-		List<String> entryList = Arrays.asList(entry);
-		Object value = null;
-		Attribute attr = new Attribute();
-	    for (String column : this.columnList) {
-	    	if(variable.equals(column)) {
-	    		int i = this.columnList.indexOf(column);
-	    		value =  (Object)(entryList.get(i));
-	    	}
-	    }
-	    attr.setName(variable);
-	    attr.setValue(value);
-		return attr;
+		
 	}
 	
 	public Attribute getAttributeValue(String variable, String twinName) {
-		// from the csv output file
-		String twinRaw = mapAlias(twinName);
-		String varRaw = mapAlias(variable);
-		String composedRaw = twinRaw + "." + varRaw;
-		String[] entry = myEntries.get(1);
-		if (this.lastCommand.equals("simulate")) {
-			entry = myEntries.get(this.clock.getNow() + 1);
-		}else if(this.lastCommand.equals("doStep")) {
-			entry = myEntries.get(2);
+		if (this.rabbitMQEnabled) {
+			return this.registeredAttributes.get(variable); // Not returning for a specific twinName
+		} else{
+			// from the csv output file
+			String twinRaw = mapAlias(twinName);
+			String varRaw = mapAlias(variable);
+			String composedRaw = twinRaw + "." + varRaw;
+			String[] entry = myEntries.get(1);
+			if (this.lastCommand.equals("simulate")) {
+				entry = myEntries.get(this.clock.getNow() + 1);
+			}else if(this.lastCommand.equals("doStep")) {
+				entry = myEntries.get(2);
+			}
+			List<String> entryList = Arrays.asList(entry);
+			Object value = null;
+			Attribute attr = new Attribute();
+			for (String column : this.columnList) {
+				if(composedRaw.equals(column)) {
+					int i = this.columnList.indexOf(column);
+					value =  (Object)(entryList.get(i));
+				}
+			}
+			attr.setName(variable);
+			attr.setValue(value);
+			return attr;
 		}
-		List<String> entryList = Arrays.asList(entry);
-		Object value = null;
-		Attribute attr = new Attribute();
-	    for (String column : this.columnList) {
-	    	if(composedRaw.equals(column)) {
-	    		int i = this.columnList.indexOf(column);
-	    		value =  (Object)(entryList.get(i));
-	    	}
-	    }
-	    attr.setName(variable);
-	    attr.setValue(value);
-		return attr;
 	}
 	
 	public Attribute getAttributeValue(String variable, Clock clock) {
@@ -291,11 +288,11 @@ public class MaestroEndpoint implements AggregateEndpoint {
 	
 	public boolean setAttributeValues(List<String> variables, List<Attribute> attrs) {
 		if(this.rabbitMQEnabled) {
-			Map<String,String> body = new HashMap<String,String>();
-			String ts = ZonedDateTime.now( ZoneOffset.UTC ).format( DateTimeFormatter.ISO_INSTANT);
+			Map<String,Object> body = new HashMap<String,Object>();
+			String ts = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 			body.put("time", ts);
 			for (int i=0; i<variables.size();i++) {				
-				body.put(variables.get(i), attrs.get(i).getValue().toString());				
+				body.put(variables.get(i), attrs.get(i).getValue());				
 			}
 			JSONObject bodyJSON = new JSONObject(body);
 			String bodyMessage = bodyJSON.toString();
@@ -313,10 +310,10 @@ public class MaestroEndpoint implements AggregateEndpoint {
 	
 	public boolean setAttributeValue(String variable, Attribute attr) {
 		if(this.rabbitMQEnabled) {
-			Map<String,String> body = new HashMap<String,String>();
-			String ts = ZonedDateTime.now( ZoneOffset.UTC ).format( DateTimeFormatter.ISO_INSTANT);
+			Map<String,Object> body = new HashMap<String,Object>();
+			String ts = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 			body.put("time", ts);
-			body.put(variable, attr.getValue().toString());
+			body.put(variable, attr.getValue());
 			JSONObject bodyJSON = new JSONObject(body);
 			String bodyMessage = bodyJSON.toString();
 			this.rawSend(bodyMessage);
@@ -357,10 +354,10 @@ public class MaestroEndpoint implements AggregateEndpoint {
 	
 	public boolean setAttributeValue(String variable, Attribute attr, String twinName) {
 		if(this.rabbitMQEnabled) {
-			Map<String,String> body = new HashMap<String,String>();
-			String ts = ZonedDateTime.now( ZoneOffset.UTC ).format( DateTimeFormatter.ISO_INSTANT);
+			Map<String,Object> body = new HashMap<String,Object>();
+			String ts = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 			body.put("time", ts);
-			body.put(variable, attr.getValue().toString());
+			body.put(variable, attr.getValue());
 			JSONObject bodyJSON = new JSONObject(body);
 			String bodyMessage = bodyJSON.toString();
 			this.rawSend(bodyMessage);
@@ -470,10 +467,7 @@ public class MaestroEndpoint implements AggregateEndpoint {
 	private void doStep() {
 		this.simulate(0.0,this.stepSize*2);
 	}
-	
 
-
-	
 	public boolean executeOperation(String opName, List<?> arguments) {
 		if (opName.equals("simulate")) {
 			this.lastCommand = "simulate";
@@ -554,14 +548,14 @@ public class MaestroEndpoint implements AggregateEndpoint {
 	
 	/***** RabbitMQFMU support *****/
 	public void rawSend(String message) {
+		//System.out.println("raw send msg: " + message + " - flag for sending: " + String.valueOf(this.flagSend));
 		if (this.flagSend == true) {
 			try {
-				this.channel.basicPublish(this.exchange, this.routingKey, null, message.getBytes());
+				this.channelToCosim.basicPublish(this.exchange, this.routingKeyToCosim, null, message.getBytes());
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-		}
-		
+		}		
 	}
 
 	@Override
@@ -574,8 +568,6 @@ public class MaestroEndpoint implements AggregateEndpoint {
 	public boolean executeOperation(String opName, List<?> arguments, String twinName, Clock clock) {
 		// Not Applicable
 		return false;
-	}
-
-	
+	}	
 
 }
