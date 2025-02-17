@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.twins</groupId>
   <artifactId>TwinManagerFramework</artifactId>
-  <version>0.0.3</version>
+  <version>0.0.4</version>
   <name>TwinManagerFramework</name>
   <description>Library for Twin management in Digital Twinning</description>
   
