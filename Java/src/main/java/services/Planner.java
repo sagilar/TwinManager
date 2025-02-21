@@ -63,7 +63,7 @@ public class Planner {
     public boolean set(TwinManager twinManager, String fileName, int coSimStepSizeMillis){
         this.coSimStepSizeMillis = coSimStepSizeMillis;
         this.internalManager = twinManager;
-        this.clock = twinManager.getClock();
+        this.clock = new Clock();
         try {
             this.reader = new CSVReaderBuilder(new FileReader(Paths.get(fileName).toString())).build();        
 			this.columnNames = this.reader.readNext();
@@ -114,7 +114,12 @@ public class Planner {
             this.planThread = new Thread(() -> {
                         new Timer().scheduleAtFixedRate(new TimerTask() {
                             public void run() {
-                                int timeStep = clock.getNow() * coSimStepSizeMillis;
+                                int timeStep = 0;    
+                                try{
+                                    timeStep = Double.valueOf(internalManager.getAsyncAttribute("simstep").toString()).intValue();
+                                }catch(Exception e1){
+                                    timeStep = clock.getNow() * coSimStepSizeMillis;
+                                }  
                                 boolean match = false;
                                 for (String[] entry : myEntries){
                                     Object[] entryObj = new Object[entry.length-1];
@@ -157,6 +162,63 @@ public class Planner {
         }
     }
 
+    public boolean executeAsync(int frequency_millis, int max_time_millis){
+        if (this.valid){
+            this.planThread = new Thread(() -> {
+                        new Timer().scheduleAtFixedRate(new TimerTask() {
+                            int timeStep = 0;
+                            public void run() {
+                                if (internalManager.getAsyncFlag())
+                                {
+                                    boolean match = false;
+                                        for (String[] entry : myEntries){
+                                            Object[] entryObj = new Object[entry.length-1];
+                                            if (Integer.parseInt(entry[0]) == timeStep){
+                                                match = true;
+                                                for (int j=0; j<entry.length-1;j++){
+                                                    try{
+                                                        if(entry[j+1].equals("false")){
+                                                            entryObj[j] = false;
+                                                        }else if(entry[j+1].equals("true")){
+                                                            entryObj[j] = true;
+                                                        }else{
+                                                            Number number = NumberFormat.getInstance().parse(entry[j+1]);
+                                                            entryObj[j] = number;
+                                                        }                                                
+                                                    }catch(Exception e){
+                                                        entryObj[j] = entry[j+1];
+                                                    }
+                                                }                                        
+                                                currentPlan = Arrays.asList(entryObj);
+                                            }
+                                        }
+                                        for (int i=0; i<currentPlan.size();i++){
+                                            for (String intTwinName : intTwinNames){
+                                                if (match) {                                        
+                                                    internalManager.setAttributeValue(columnList.get(i),currentPlan.get(i),intTwinName); 
+                                                } else{
+                                                    internalManager.setAttributeValue(columnList.get(i),initialPlan.get(i),intTwinName);
+                                                }
+                                            }                                    
+                                        }
+                                    timeStep += frequency_millis;  
+                                }
+                                
+                                if(timeStep > max_time_millis){
+                                    this.cancel();
+                                    stop();
+                                }
+                            }
+                }, 0, frequency_millis);
+            });
+            this.planThread.setDaemon(true);
+            this.planThread.start();
+            return true;
+        }else{
+            return false;
+        }
+    }
+
     public boolean stop(){
         // TO BE IMPLEMENTED (threaded)
         this.planThread.interrupt();
@@ -171,7 +233,7 @@ public class Planner {
     public boolean systemSet(TwinManager twinManager, String fileName, int coSimStepSizeMillis){
         this.coSimStepSizeMillis = coSimStepSizeMillis;
         this.internalManager = twinManager;
-        this.clock = twinManager.getClock();
+        this.clock = new Clock();
         try {
             this.reader = new CSVReaderBuilder(new FileReader(Paths.get(fileName).toString())).build();        
 			this.columnNames = this.reader.readNext();
@@ -221,8 +283,13 @@ public class Planner {
         if (this.valid){           
             this.planSystemThread = new Thread(() -> {
                         new Timer().scheduleAtFixedRate(new TimerTask() {
-                            public void run() {                             
-                                int timeStep = clock.getNow() * coSimStepSizeMillis;
+                            public void run() {   
+                                int timeStep = 0;    
+                                try{
+                                    timeStep = Double.valueOf(internalManager.getAsyncAttribute("simstep").toString()).intValue();
+                                }catch(Exception e1){
+                                    timeStep = clock.getNow() * coSimStepSizeMillis;
+                                }             
                                 boolean match = false;
                                 for (String[] entry : myEntries){
                                     Object[] entryObj = new Object[entry.length-1];
@@ -264,6 +331,61 @@ public class Planner {
         }
     }
 
+    public boolean systemExecuteAsync(int frequency_millis, int max_time_millis){
+        if (this.valid){
+            this.planSystemThread = new Thread(() -> {
+                        new Timer().scheduleAtFixedRate(new TimerTask() {
+                            int timeStep = 0;
+                            public void run() {
+                                if (internalManager.getAsyncFlag())
+                                {
+                                    boolean match = false;
+                                        for (String[] entry : myEntries){
+                                            Object[] entryObj = new Object[entry.length-1];
+                                            if (Integer.parseInt(entry[0]) == timeStep){
+                                                match = true;
+                                                for (int j=0; j<entry.length-1;j++){
+                                                    try{
+                                                        if(entry[j+1].equals("false")){
+                                                            entryObj[j] = false;
+                                                        }else if(entry[j+1].equals("true")){
+                                                            entryObj[j] = true;
+                                                        }else{
+                                                            Number number = NumberFormat.getInstance().parse(entry[j+1]);
+                                                            entryObj[j] = number;
+                                                        }                                                
+                                                    }catch(Exception e){
+                                                        entryObj[j] = entry[j+1];
+                                                    }
+                                                }                                        
+                                                currentPlanSystem = Arrays.asList(entryObj);
+                                            }
+                                        }
+                                        for (String intTwinSystemName : intTwinSystemNames){
+                                            if (match) {
+                                                internalManager.setSystemAttributeValues(columnList,currentPlanSystem,intTwinSystemName); 
+                                            } else{
+                                                internalManager.setSystemAttributeValues(columnList,initialPlanSystem,intTwinSystemName); 
+                                            }
+                                        }
+                                    timeStep += frequency_millis;  
+                                }
+                                
+                                if(timeStep > max_time_millis){
+                                    this.cancel();
+                                    systemStop();
+                                }
+                            }
+                }, 0, frequency_millis);
+            });
+            this.planSystemThread.setDaemon(true);
+            this.planSystemThread.start();
+            return true;
+        }else{
+            return false;
+        }
+    }
+
     public boolean systemStop(){
         this.planSystemThread.interrupt();
         return true;
@@ -277,5 +399,9 @@ public class Planner {
     public boolean setClock(int clockInt){
         this.clock.setClock(clockInt);;
         return true;
+    }
+
+    public Clock getClock(){
+        return this.clock;
     }
 }

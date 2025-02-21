@@ -519,6 +519,10 @@ public class TwinManager {
 		}
 	}
 
+	public boolean getAsyncFlag(){
+		return this.flagSend;
+	}
+
 	public void setSync(){
 		this.async = false;
 		try {
